@@ -1,0 +1,816 @@
+<!DOCTYPE html>  
+<html lang="th">  
+<head>  
+<meta charset="UTF-8"/>  
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>  
+<title>TONIX — LIQUIDITY BREAKOUT</title>  
+<style>  
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');  
+:root{  
+  --bg:#070101;--red:#DD1111;--red2:#FF4444;--red3:#881111;  
+  --text:rgba(255,210,210,0.92);--dim:rgba(200,80,80,0.5);  
+  --label:rgba(255,130,130,0.6);  
+  --orb:'Orbitron','Courier New',monospace;  
+  --mono:'Share Tech Mono','Courier New',monospace;  
+}  
+*{box-sizing:border-box;margin:0;padding:0;}  
+html,body{width:100%;height:100%;background:var(--bg);color:var(--text);font-family:var(--mono);overflow:hidden;-webkit-font-smoothing:antialiased;}  
+  
+/* AMBIENT */  
+#grid{position:fixed;inset:0;z-index:0;pointer-events:none;  
+  background-image:linear-gradient(rgba(180,10,10,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(180,10,10,0.04) 1px,transparent 1px);  
+  background-size:52px 52px;animation:gridUp 20s linear infinite;}  
+@keyframes gridUp{0%{background-position:0 0;}100%{background-position:0 52px;}}  
+#smoke{position:fixed;bottom:0;left:0;right:0;height:35vh;z-index:0;pointer-events:none;  
+  background:radial-gradient(ellipse 90% 60% at 50% 100%,rgba(160,8,8,0.22) 0%,transparent 70%);  
+  animation:smokeBreath 7s ease-in-out infinite;}  
+@keyframes smokeBreath{0%,100%{opacity:0.7;}50%{opacity:1;}}  
+#scanlines{position:fixed;inset:0;z-index:9998;pointer-events:none;  
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.016) 2px,rgba(0,0,0,0.016) 4px);}  
+#rolling{position:fixed;left:0;right:0;height:140px;z-index:9997;pointer-events:none;  
+  background:linear-gradient(transparent,rgba(200,10,10,0.012),transparent);  
+  animation:roll 12s linear infinite;}  
+@keyframes roll{0%{top:-140px;}100%{top:100vh;}}  
+#vignette{position:fixed;inset:0;z-index:1;pointer-events:none;  
+  background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,0.68) 100%);  
+  animation:vigPulse 6s ease-in-out infinite;}  
+@keyframes vigPulse{0%,100%{opacity:0.8;}50%{opacity:1;}}  
+  
+/* CORNERS */  
+.corner{position:fixed;z-index:50;pointer-events:none;}  
+.corner::before,.corner::after{content:'';position:absolute;background:rgba(180,20,20,0.3);}  
+.tl{top:12px;left:12px;width:20px;height:20px;}  
+.tl::before{top:0;left:0;width:100%;height:1px;}  
+.tl::after{top:0;left:0;width:1px;height:100%;}  
+.tr{top:12px;right:12px;width:20px;height:20px;}  
+.tr::before{top:0;right:0;width:100%;height:1px;}  
+.tr::after{top:0;right:0;width:1px;height:100%;}  
+.bl{bottom:12px;left:12px;width:20px;height:20px;}  
+.bl::before{bottom:0;left:0;width:100%;height:1px;}  
+.bl::after{bottom:0;left:0;width:1px;height:100%;}  
+.br{bottom:12px;right:12px;width:20px;height:20px;}  
+.br::before{bottom:0;right:0;width:100%;height:1px;}  
+.br::after{bottom:0;right:0;width:1px;height:100%;}  
+  
+/* HEADER */  
+#header{position:fixed;top:0;left:0;right:0;z-index:200;  
+  padding:10px 20px;  
+  display:flex;align-items:center;justify-content:space-between;  
+  border-bottom:1px solid rgba(140,10,10,0.2);  
+  background:linear-gradient(180deg,rgba(7,1,1,0.9) 0%,transparent 100%);}  
+.h-left{display:flex;align-items:center;gap:8px;}  
+.h-dot{width:6px;height:6px;border-radius:50%;background:var(--red);animation:dotP 1.5s ease-in-out infinite;}  
+@keyframes dotP{0%,100%{opacity:0.4;box-shadow:0 0 0 var(--red);}50%{opacity:1;box-shadow:0 0 8px var(--red);}}  
+.h-label{font-size:8px;letter-spacing:3px;color:rgba(180,30,30,0.45);}  
+.h-logo{height:36px;width:auto;object-fit:contain;}  
+  
+/* FOOTER */  
+#footer{position:fixed;bottom:0;left:0;right:0;z-index:200;  
+  padding:8px 20px;  
+  display:flex;align-items:center;justify-content:space-between;  
+  border-top:1px solid rgba(140,10,10,0.15);  
+  background:linear-gradient(0deg,rgba(7,1,1,0.9) 0%,transparent 100%);}  
+#ts{font-size:8px;letter-spacing:2px;color:rgba(140,20,20,0.4);font-family:var(--orb);}  
+#sc{font-size:9px;letter-spacing:3px;color:rgba(140,20,20,0.4);}  
+  
+/* BACK BUTTON */  
+#back-btn{  
+  position:fixed;bottom:36px;left:20px;z-index:300;  
+  width:42px;height:42px;border-radius:50%;  
+  background:rgba(10,1,1,0.9);  
+  border:1px solid rgba(180,20,20,0.35);  
+  display:flex;align-items:center;justify-content:center;  
+  cursor:pointer;  
+  transition:all 0.2s ease;  
+  opacity:0.5;  
+}  
+#back-btn:hover{opacity:1;border-color:rgba(220,20,20,0.7);box-shadow:0 0 14px rgba(200,20,20,0.3);}  
+#back-btn:active{transform:scale(0.92);}  
+#back-btn svg{width:16px;height:16px;}  
+#back-btn.hidden{opacity:0;pointer-events:none;}  
+  
+/* FLASH */  
+#flash{position:fixed;inset:0;z-index:9999;pointer-events:none;background:rgba(200,20,20,0.05);opacity:0;transition:opacity 0.08s;}  
+  
+/* SLIDE */  
+#slide{position:fixed;top:52px;bottom:44px;left:0;right:0;z-index:10;  
+  display:flex;align-items:center;justify-content:center;  
+  padding:16px 24px;cursor:pointer;}  
+.si{width:100%;max-width:680px;margin:0 auto;}  
+  
+/* TYPOGRAPHY */  
+.lbl{font-size:9px;letter-spacing:4px;color:var(--label);text-transform:uppercase;  
+  margin-bottom:20px;display:flex;align-items:center;gap:10px;}  
+.lbl::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(140,10,10,0.3),transparent);}  
+.title{font-family:var(--orb);font-size:clamp(20px,4vw,36px);font-weight:900;  
+  color:#fff;letter-spacing:2px;line-height:1.2;  
+  text-shadow:0 0 30px rgba(200,20,20,0.35);margin-bottom:16px;}  
+.body{font-size:clamp(16px,2.5vw,22px);line-height:2;color:var(--text);}  
+.body p{margin-bottom:8px;}  
+.rule{width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(140,10,10,0.4),transparent);margin:16px 0;}  
+.acc{color:#fff;font-weight:700;}  
+.red{color:var(--red2);}  
+.orb{font-family:var(--orb);}  
+  
+/* BOOT */  
+.boot-line{font-size:clamp(14px,2vw,18px);line-height:2.2;color:var(--dim);display:block;opacity:0;}  
+.progress-bar{width:100%;height:2px;background:rgba(140,10,10,0.2);margin:12px 0;overflow:hidden;}  
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--red3),var(--red),var(--red2));box-shadow:0 0 10px var(--red);}  
+.boot-title{font-family:var(--orb);font-weight:900;font-size:clamp(24px,5vw,52px);  
+  color:var(--red);letter-spacing:3px;text-shadow:0 0 40px rgba(220,20,20,0.5);margin:14px 0 8px;}  
+.boot-sub{font-size:clamp(12px,2vw,18px);letter-spacing:4px;color:rgba(255,180,180,0.65);margin-bottom:6px;}  
+.boot-hint{font-size:10px;letter-spacing:5px;color:rgba(140,20,20,0.4);margin-top:20px;animation:blinkS 2s ease-in-out infinite;}  
+@keyframes blinkS{0%,100%{opacity:0.25;}50%{opacity:0.7;}}  
+  
+/* BIG CANDLE */  
+.big-candle-wrap{display:flex;justify-content:center;align-items:center;margin:20px 0;gap:40px;}  
+.big-candle{display:flex;flex-direction:column;align-items:center;position:relative;}  
+.bc-wick-top{width:3px;border-radius:2px;background:var(--text);}  
+.bc-body{width:36px;border-radius:2px;}  
+.bc-wick-bot{width:3px;border-radius:2px;background:var(--text);}  
+.bc-up .bc-body{background:linear-gradient(180deg,rgba(0,220,120,0.9),rgba(0,180,90,0.9));box-shadow:0 0 16px rgba(0,220,120,0.4);}  
+.bc-dn .bc-body{background:linear-gradient(180deg,rgba(220,30,30,0.9),rgba(180,10,10,0.9));box-shadow:0 0 16px rgba(220,30,30,0.4);}  
+.bc-label{font-family:var(--orb);font-size:10px;letter-spacing:2px;white-space:nowrap;position:absolute;}  
+.bc-label.high{top:-28px;}  
+.bc-label.low{bottom:-28px;}  
+.bc-line{position:absolute;left:-60px;right:-60px;height:1px;}  
+.bc-line.hline{background:rgba(0,220,120,0.6);box-shadow:0 0 6px rgba(0,220,120,0.3);}  
+.bc-line.lline{background:rgba(220,30,30,0.6);box-shadow:0 0 6px rgba(220,30,30,0.3);}  
+  
+/* TIMELINE */  
+.timeline{margin:14px 0;}  
+.tl-track{height:4px;background:rgba(140,10,10,0.2);border-radius:2px;overflow:hidden;margin:8px 0;position:relative;}  
+.tl-fill{height:100%;width:0;background:linear-gradient(90deg,var(--red3),var(--red));transition:width 1.4s cubic-bezier(0.4,0,0.2,1);}  
+.tl-fill.go{width:100%;}  
+.tl-fill.london{background:linear-gradient(90deg,rgba(200,20,20,0.3),var(--red));transition:width 1.2s cubic-bezier(0.4,0,0.2,1) 0.5s;}  
+.tl-fill.london.go{width:70%;margin-left:30%;}  
+.tl-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);}  
+  
+/* ORDER VIZ */  
+.order-viz{background:rgba(4,0,0,0.6);border:1px solid rgba(120,10,10,0.2);border-radius:2px;padding:16px;margin:14px 0;position:relative;}  
+.ov-row{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:clamp(13px,1.8vw,17px);}  
+.ov-line{flex:1;height:1px;}  
+.ov-line.h{background:linear-gradient(90deg,rgba(0,220,120,0.7),rgba(0,220,120,0.2));box-shadow:0 0 4px rgba(0,220,120,0.2);}  
+.ov-line.h2{background:linear-gradient(90deg,rgba(0,180,90,0.45),rgba(0,180,90,0.1));}  
+.ov-line.l{background:linear-gradient(90deg,rgba(220,30,30,0.7),rgba(220,30,30,0.2));box-shadow:0 0 4px rgba(220,30,30,0.2);}  
+.ov-line.l2{background:linear-gradient(90deg,rgba(180,10,10,0.45),rgba(180,10,10,0.1));}  
+.ov-line.entry{background:rgba(255,255,255,0.2);}  
+.center-price{text-align:center;font-size:10px;color:var(--dim);letter-spacing:2px;padding:4px 0;}  
+  
+/* STEP LIST */  
+.step-list{list-style:none;margin:8px 0;}  
+.step-list li{display:flex;gap:14px;padding:8px 0;font-size:clamp(14px,2vw,19px);line-height:1.7;opacity:0;border-bottom:1px solid rgba(120,10,10,0.1);}  
+.step-list li:last-child{border-bottom:none;}  
+.step-list li.show{opacity:1;animation:fadeUp 0.35s ease forwards;}  
+.step-num{font-family:var(--orb);font-size:11px;color:var(--red);min-width:26px;margin-top:3px;}  
+  
+/* CHECK LIST */  
+.check-list{list-style:none;margin:8px 0;}  
+.check-list li{display:flex;gap:12px;padding:6px 0;font-size:clamp(14px,2vw,18px);opacity:0;}  
+.check-list li.show{opacity:1;animation:fadeUp 0.3s ease forwards;}  
+.chk{font-family:var(--orb);font-size:13px;min-width:20px;}  
+.bad{color:rgba(255,100,100,0.65);}  
+.good{color:rgba(180,255,180,0.8);}  
+  
+/* TIME TABLE */  
+.ttable{width:100%;border-collapse:collapse;margin:12px 0;}  
+.ttable td{padding:9px 14px;font-size:clamp(14px,2vw,19px);border-bottom:1px solid rgba(120,10,10,0.15);}  
+.ttable td:first-child{font-size:10px;letter-spacing:2px;color:var(--label);width:70px;}  
+.ttable td:last-child{font-family:var(--orb);color:#fff;letter-spacing:1px;}  
+  
+/* RISK VIZ */  
+.risk-row{display:flex;align-items:center;gap:12px;margin:8px 0;font-size:clamp(13px,1.8vw,17px);}  
+.risk-bar{height:3px;border-radius:2px;width:0;transition:width 1s ease;}  
+.rsl{background:var(--red2);box-shadow:0 0 6px rgba(255,68,68,0.4);}  
+.rtp{background:rgba(0,220,120,0.8);box-shadow:0 0 6px rgba(0,220,120,0.3);}  
+.rsl.go{width:100px;}  
+.rtp.go{width:200px;}  
+  
+/* FINAL */  
+.final-line{font-size:clamp(18px,3vw,30px);line-height:2.1;text-align:center;opacity:0;}  
+.final-line.show{opacity:1;animation:fadeUp 0.6s ease forwards;}  
+  
+/* ANIM */  
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}  
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}  
+.fu{opacity:0;}  
+.fu.show{animation:fadeUp 0.4s ease forwards;opacity:1;}  
+#cursor-blink{animation:blink 0.7s step-end infinite;color:var(--red);}  
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}  
+  
+/* GAP ZONE */  
+.gap-zone{border:1px dashed rgba(255,200,0,0.4);background:rgba(255,200,0,0.04);  
+  padding:8px 12px;font-size:11px;letter-spacing:2px;color:rgba(255,200,0,0.65);  
+  margin:6px 0;opacity:0;}  
+.gap-zone.show{animation:gapBlink 0.5s ease-in-out 4 forwards;opacity:1;}  
+@keyframes gapBlink{0%,100%{opacity:1;}50%{opacity:0.2;}}  
+</style>  
+</head>  
+<body>  
+<div id="grid"></div>  
+<div id="smoke"></div>  
+<div id="scanlines"></div>  
+<div id="rolling"></div>  
+<div id="vignette"></div>  
+<div class="corner tl"></div>  
+<div class="corner tr"></div>  
+<div class="corner bl"></div>  
+<div class="corner br"></div>  
+  
+<div id="header">  
+  <div class="h-left">  
+    <div class="h-dot"></div>  
+    <span class="h-label">**◈** CLASSIFIED — EYES ONLY</span>  
+  </div>  
+  <img id="logo-img" class="h-logo" src="" alt="TONIX"/>  
+</div>  
+  
+<div id="footer">  
+  <div id="ts">00:00:00 UTC</div>  
+  <div id="sc">SLIDE 01 / 19</div>  
+</div>  
+  
+<!-- BACK BUTTON -->  
+<div id="back-btn" class="hidden" onclick="goBack(event)">  
+  <svg viewBox="0 0 24 24" fill="none" stroke="rgba(200,80,80,0.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">  
+    <polyline points="15 18 9 12 15 6"></polyline>  
+  </svg>  
+</div>  
+  
+<div id="flash"></div>  
+<div id="slide" onclick="goForward()"><div class="si" id="si"></div></div>  
+  
+<script>  
+// **──** LOGO BASE64 **────────────────────────────────────────────────────────────**  
+const LOGO="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";  
+document.getElementById('logo-img').src='data:image/png;base64,'+LOGO;  
+  
+// **──** TIMESTAMP **─────────────────────────────────────────────────────────────**  
+(function tick(){  
+  const d=new Date(),p=n=>String(n).padStart(2,'0');  
+  document.getElementById('ts').textContent=`${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} UTC`;  
+  setTimeout(tick,1000);  
+})();  
+  
+// **──** GLITCH **─────────────────────────────────────────────────────────────────**  
+function schedGlitch(){  
+  setTimeout(()=>{  
+    document.body.style.transform='translateX(2px)';  
+    setTimeout(()=>{document.body.style.transform='';schedGlitch();},55);  
+  },20000+Math.random()*8000);  
+}  
+schedGlitch();  
+  
+// **──** FLASH **──────────────────────────────────────────────────────────────────**  
+function flash(){  
+  const f=document.getElementById('flash');  
+  f.style.opacity='1';setTimeout(()=>f.style.opacity='0',80);  
+}  
+  
+// **──** DECRYPT **────────────────────────────────────────────────────────────────**  
+const CH='!<>-_\\/[]{}=+*^?#|**▓▒░**';  
+function decrypt(el,text,delay,cb){  
+  setTimeout(()=>{  
+    el.style.opacity='1';  
+    let f=0,tot=16;  
+    const iv=setInterval(()=>{  
+      el.textContent=text.split('').map((c,i)=>{  
+        if(c===' ')return ' ';  
+        if(i<Math.floor((f/tot)*text.length))return c;  
+        return CH[Math.floor(Math.random()*CH.length)];  
+      }).join('');  
+      f++;if(f>tot){el.textContent=text;clearInterval(iv);if(cb)cb();}  
+    },35);  
+  },delay);  
+}  
+function showEl(id,delay){  
+  setTimeout(()=>{  
+    const el=document.getElementById(id)||document.querySelector('.'+id);  
+    if(el){el.style.opacity='1';el.style.animation='fadeUp 0.4s ease forwards';}  
+  },delay);  
+}  
+function showEls(ids,baseDelay,step){  
+  ids.forEach((id,i)=>showEl(id,baseDelay+i*step));  
+}  
+  
+// **──** BIG CANDLE BUILDER **─────────────────────────────────────────────────────**  
+function bigCandle(up,wtH,bodyH,wbH,showLabels){  
+  const color=up?'rgba(0,210,110,0.9)':'rgba(220,30,30,0.9)';  
+  const glow=up?'rgba(0,210,110,0.4)':'rgba(220,30,30,0.4)';  
+  const hColor='rgba(0,210,110,0.85)';  
+  const lColor='rgba(220,30,30,0.85)';  
+  return `  
+    <div style="display:flex;flex-direction:column;align-items:center;position:relative;padding:${showLabels?'32px':0} 60px;">  
+      ${showLabels?`  
+        <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:var(--orb);font-size:11px;letter-spacing:2px;color:${hColor};">▲ PREVIOUS DAY HIGH</div>  
+<div style="position:absolute;top:${wtH-10}px;left:50%;transform:translateX(-50%);width:140px;height:1px;background:${hColor};box-shadow:0 0 6px ${hColor};"></div>  
+      `:''}  
+      <div style="width:3px;height:${wtH}px;background:${color};border-radius:2px;box-shadow:0 0 8px ${glow};"></div>  
+      <div style="width:44px;height:${bodyH}px;background:${color};border-radius:3px;box-shadow:0 0 20px ${glow};"></div>  
+      <div style="width:3px;height:${6+wbH+12}px;background:${color};border-radius:2px;box-shadow:0 0 8px ${glow};"></div>  
+      ${showLabels?`  
+        <div style="position:absolute;bottom:${wbH}px;left:50%;transform:translateX(-50%);width:140px;height:1px;background:${lColor};box-shadow:0 0 6px ${lColor};"></div>  
+        <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);white-space:nowrap;font-family:var(--orb);font-size:11px;letter-spacing:2px;color:${lColor};">▼ PREVIOUS DAY LOW</div>  
+      `:''}  
+    </div>`;  
+}  
+  
+// **──** SLIDES **──────────────────────────────────────────────────────────────────**  
+const SLIDES=[  
+  
+// 01 BOOT  
+{render(){  
+  const si=document.getElementById('si');  
+  si.innerHTML=`  
+    <div style="max-width:540px;">  
+      <div id="bl1" class="boot-line">**กำลังเริ่มต้นภัย**...</div>  
+      <div id="bl2" class="boot-line">**กำลังยืนยันตัวตน**...</div>  
+      <div id="bl3" class="boot-line">**กำลังถอดรหัสข้อมูล**...</div>  
+      <div class="progress-bar" id="pb" style="opacity:0"><div class="progress-fill" id="pf"></div></div>  
+      <div id="ac" style="opacity:0">  
+        <div class="boot-title">**อนุญาตการเข้าถึง**</div>  
+        <div class="boot-sub" style="letter-spacing:5px;">LIQUIDITY BREAKOUT SYSTEM</div>  
+        <div style="font-size:clamp(11px,1.6vw,15px);letter-spacing:3px;color:var(--dim);margin-bottom:4px;">**รายงานการสอน** — **ฉบับสมบูรณ์**</div>  
+      </div>  
+      <div class="boot-hint" id="bh" style="opacity:0;">[ **คลิกที่ใดก็ได้เพื่อเริ่ม** ]</div>  
+    </div>`;  
+  decrypt(document.getElementById('bl1'),'**กำลังเริ่มต้นช่องสัญญาณที่ปลอดภัย**...',300,()=>{  
+    decrypt(document.getElementById('bl2'),'**กำลังยืนยันตัวตน**...',500,()=>{  
+      decrypt(document.getElementById('bl3'),'**กำลังถอดรหัสข้อมูล**...',700,()=>{  
+        const pb=document.getElementById('pb');  
+        pb.style.cssText+='opacity:1;transition:opacity 0.3s;';  
+        setTimeout(()=>{  
+          const pf=document.getElementById('pf');let w=0;  
+          const iv=setInterval(()=>{w+=2;pf.style.width=w+'%';if(w>=100){clearInterval(iv);  
+            const ac=document.getElementById('ac');  
+            ac.style.cssText+='opacity:1;transition:opacity 0.6s;';  
+            setTimeout(()=>{const bh=document.getElementById('bh');bh.style.cssText+='opacity:1;transition:opacity 0.5s;';},900);  
+          }},22);  
+        },400);  
+      });  
+    });  
+  });  
+}},  
+  
+// 02 WHY THESE LEVELS  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **ทำไมจุดเหล่านี้ถึงสำคัญ**</div>  
+    <div class="body">  
+      <p id="l1" class="fu">**เจ้าตลาดและสถาบันการเงินขนาดใหญ่**</p>  
+      <p id="l2" class="fu">**วางคำสั่งมูลค่ามหาศาลซ่อนอยู่ที่** <span class="acc">**จุดต่ำสูง**</span> **ของแต่ละวัน**</p>  
+      <p id="l3" class="fu">**เพราะนั่นคือจุดที่มี** <span class="acc">Liquidity **สูงที่สุด**</span></p>  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l4" class="fu">**เมื่อราคาแตะจุดเหล่านั้น**</p>  
+      <p id="l5" class="fu">**คำสั่งขนาดใหญ่ถูกกระตุ้นพร้อมกัน**</p>  
+      <p id="l6" class="fu">**ตลาดเคลื่อนไหวอย่าง**<span class="acc">**รุนแรงและรวดเร็ว**</span></p>  
+      <div class="rule" id="r2" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l7" class="fu" style="font-family:var(--orb);font-size:clamp(15px,2.5vw,24px);color:#fff;">**นั่นคือโอกาสของเรา**</p>  
+    </div>`;  
+  showEls(['l1','l2','l3','r1','l4','l5','l6','r2','l7'],300,200);  
+}},  
+  
+// 03 OPEN CHART — BIG DAILY CANDLE  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **ขั้นตอนที่** 1: **เปิดกราฟ**</div>  
+    <div class="body">  
+      <p id="l1" class="fu">**เปิด** <span class="acc">Timeframe Daily (D1)</span></p>  
+      <p id="l2" class="fu">**มองหา**<span class="acc">**แท่งเทียนวันเมื่อวาน**</span> — 1 **แท่ง**</p>  
+    </div>  
+    <div id="cv" style="opacity:0;display:flex;justify-content:center;margin:20px 0;">  
+      ${bigCandle(true,40,100,30,false)}  
+    </div>  
+    <div class="body">  
+      <p id="l3" class="fu">**แท่งเทียน** 1 **แท่ง** = <span class="acc">**ราคาทั้งวัน**</span></p>  
+      <p id="l4" class="fu">**มีราคาสูงสุด** **ต่ำสุด** **เปิด** **ปิด** **ของทั้งวัน**</p>  
+    </div>`;  
+  showEls(['l1','l2'],300,200);  
+  setTimeout(()=>{const c=document.getElementById('cv');c.style.cssText+='opacity:1;transition:opacity 0.6s;';},900);  
+  showEls(['l3','l4'],1400,200);  
+}},  
+  
+// 04 MARK DAILY HIGH/LOW  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **มาร์ค** Previous Day High/Low</div>  
+    <p id="l1" class="fu body" style="margin-bottom:14px;">High **และ** Low **ของแท่งเทียนวันเมื่อวาน** **คือเส้นที่เราต้องมาร์ค**</p>  
+    <div id="cv" style="opacity:0;display:flex;justify-content:center;margin:10px 0 20px;">  
+      ${bigCandle(true,40,100,30,true)}  
+    </div>  
+    <div class="body">  
+      <p id="l2" class="fu">**ลากเส้นตรงที่** <span style="color:rgba(0,210,110,0.9);">HIGH **สูงสุด**</span> **ของแท่ง**</p>  
+      <p id="l3" class="fu">**ลากเส้นตรงที่** <span class="red">LOW **ต่ำสุด**</span> **ของแท่ง**</p>  
+    </div>`;  
+  showEl('l1',300);  
+  setTimeout(()=>{const c=document.getElementById('cv');c.style.cssText+='opacity:1;transition:opacity 0.7s;';},700);  
+  showEls(['l2','l3'],1500,220);  
+}},  
+  
+// 05 WHY DAILY WORKS  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **ทำไม** Daily High/Low **ถึงทรงพลัง**</div>  
+    <div class="body">  
+      <p id="l1" class="fu">**จุดเหล่านี้คือที่ที่** <span class="acc">**เจ้าตลาด**</span></p>  
+      <p id="l2" class="fu">**ทิ้ง** <span class="acc">Stop Loss</span> **และ** <span class="acc">Pending Order</span> **จำนวนมากไว้**</p>  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l3" class="fu">**เมื่อราคาทะลุผ่านจุดเหล่านั้น**:</p>  
+      <p id="l4" class="fu">→ Stop Loss **ถูก** Trigger **จำนวนมาก**</p>  
+      <p id="l5" class="fu">→ **เกิดแรงซื้อขายรุนแรงทันที**</p>  
+      <p id="l6" class="fu">→ **ตลาดเคลื่อนไหวแบบ** <span class="acc">Momentum</span></p>  
+      <div class="rule" id="r2" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l7" class="fu" style="font-family:var(--orb);color:#fff;font-size:clamp(14px,2vw,20px);">**ตลาดไม่ได้ทะลุโดยบังเอิญ**</p>  
+      <p id="l8" class="fu" style="font-family:var(--orb);color:var(--red2);font-size:clamp(14px,2vw,20px);">**มันถูกผลักโดย** Liquidity **ที่สะสมอยู่**</p>  
+    </div>`;  
+  showEls(['l1','l2','r1','l3','l4','l5','l6','r2','l7','l8'],300,190);  
+}},  
+  
+// 06 LONDON TIME  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **เส้นที่** 3 **และ** 4: London High/Low</div>  
+    <table class="ttable" id="tt" style="opacity:0">  
+      <tr><td>UTC</td><td>08:00 → 20:45</td></tr>  
+      <tr><td>**ไทย**</td><td>15:00 → 03:45 (**วันถัดไป**)</td></tr>  
+    </table>  
+    <div class="timeline" id="tl" style="opacity:0">  
+      <div class="tl-labels"><span>00:00</span><span style="color:var(--red2)">08:00 London **เริ่ม**</span><span>20:45</span></div>  
+      <div class="tl-track"><div class="tl-fill london" id="lf"></div></div>  
+      <div style="font-size:10px;color:var(--dim);margin-top:4px;">London **ปิดพร้อมกับแท่งวัน** **ที่** 20:45 UTC</div>  
+    </div>  
+    <div class="body">  
+      <p id="l1" class="fu">London **คือตลาดที่มีปริมาณซื้อขาย** <span class="acc">**สูงที่สุดในโลก**</span></p>  
+      <p id="l2" class="fu">**เราต้องมาร์ค** High/Low **ของช่วงนี้ด้วย**</p>  
+    </div>`;  
+  setTimeout(()=>{const t=document.getElementById('tt');t.style.cssText+='opacity:1;animation:fadeUp 0.4s ease forwards;';},300);  
+  setTimeout(()=>{const t=document.getElementById('tl');t.style.cssText+='opacity:1;animation:fadeUp 0.4s ease forwards;';},700);  
+  setTimeout(()=>{document.getElementById('lf').classList.add('go');},1000);  
+  showEls(['l1','l2'],1600,220);  
+}},  
+  
+// 07 HOW TO FIND LONDON  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **วิธีหา** London **บนกราฟ**</div>  
+    <div class="body">  
+      <p id="l1" class="fu"><span class="acc">**วิธีที่** 1:</span> **ดูเวลาบนแท่งเทียน**</p>  
+      <p id="l2" class="fu">**มองหาแท่งที่เริ่มเวลา** <span class="acc">08:00 UTC / 15:00 **ไทย**</span></p>  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l3" class="fu"><span class="acc">**วิธีที่** 2 (**แนะนำ**):</span></p>  
+      <p id="l4" class="fu">**ใช้** <span class="acc">"Session Indicator"</span> **บน** TradingView</p>  
+      <div id="steps" style="margin:12px 0 8px 16px;opacity:0">  
+        <p style="padding:5px 0;font-size:clamp(14px,2vw,18px);">1. **กด** <span style="border:1px solid rgba(200,60,60,0.4);padding:2px 8px;font-family:var(--orb);font-size:12px;color:var(--red2);">Indicators</span> **บนกราฟ**</p>  
+        <p style="padding:5px 0;font-size:clamp(14px,2vw,18px);">2. **ค้นหา** <span style="border:1px solid rgba(200,60,60,0.4);padding:2px 8px;font-family:var(--orb);font-size:12px;color:var(--red2);">Session Indicator</span></p>  
+        <p style="padding:5px 0;font-size:clamp(14px,2vw,18px);">3. **เปิดใช้งาน**</p>  
+      </div>  
+      <p id="l5" class="fu">→ **โปรแกรมจะแสดงโซน** London **ให้อัตโนมัติ**</p>  
+      <p id="l6" class="fu">**ไม่ต้องนับเวลาเองเลย**</p>  
+    </div>`;  
+  showEls(['l1','l2','r1','l3','l4'],300,180);  
+  setTimeout(()=>{const s=document.getElementById('steps');s.style.cssText+='opacity:1;animation:fadeUp 0.4s ease forwards;';},1300);  
+  showEls(['l5','l6'],1800,200);  
+}},  
+  
+// 08 WHY LONDON WORKS  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **ทำไมจุดต่ำสูงของ** London **ถึงสำคัญ**</div>  
+    <div class="body">  
+      <p id="l1" class="fu">**ช่วง** London **สร้างกรอบราคา**</p>  
+      <p id="l2" class="fu">Liquidity **สะสมทั้งฝั่งบนและล่าง**</p>  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l3" class="fu">**จากนั้น** **เจ้าตลาดจะผลักราคา**</p>  
+      <p id="l4" class="fu">**ออกจากกรอบเพื่อดึง** Liquidity **ออกมา**</p>  
+      <div class="rule" id="r2" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l5" class="fu" style="font-family:var(--orb);color:#fff;font-size:clamp(14px,2vw,20px);">**การทะลุจุดต่ำสูงของ** London</p>  
+      <p id="l6" class="fu" style="font-family:var(--orb);color:var(--red2);font-size:clamp(14px,2vw,20px);">**มักตามมาด้วยการเคลื่อนไหวที่รุนแรงเสมอ**</p>  
+    </div>`;  
+  showEls(['l1','l2','r1','l3','l4','r2','l5','l6'],300,200);  
+}},  
+  
+// 09 ALL 4 LINES  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** 4 **เส้นบนกราฟของคุณ**</div>  
+    <div class="order-viz" id="ov" style="opacity:0">  
+      <div class="ov-row" id="ov1" style="opacity:0">  
+        <div class="ov-line h"></div>  
+        <span style="font-size:11px;color:rgba(0,210,110,0.9);white-space:nowrap;letter-spacing:1px;">Previous Day HIGH ▲</span>  
+      </div>  
+      <div class="ov-row" id="ov2" style="opacity:0">  
+        <div class="ov-line h2"></div>  
+        <span style="font-size:11px;color:rgba(0,180,90,0.7);white-space:nowrap;letter-spacing:1px;">London HIGH ▲</span>  
+      </div>  
+      <div class="center-price">— **ราคาปัจจุบัน** —</div>  
+      <div class="ov-row" id="ov3" style="opacity:0">  
+        <div class="ov-line l2"></div>  
+        <span style="font-size:11px;color:rgba(220,80,80,0.7);white-space:nowrap;letter-spacing:1px;">London LOW ▼</span>  
+      </div>  
+      <div class="ov-row" id="ov4" style="opacity:0">  
+        <div class="ov-line l"></div>  
+        <span style="font-size:11px;color:var(--red2);white-space:nowrap;letter-spacing:1px;">Previous Day LOW ▼</span>  
+      </div>  
+    </div>  
+    <div class="body">  
+      <p id="l1" class="fu">**ทั้ง** 4 **เส้นนี้คือจุดที่** Liquidity **สะสมอยู่มากที่สุด**</p>  
+      <p id="l2" class="fu"><span class="acc">**ราคาจะโดนดึงดูดไปยังจุดเหล่านี้**</span> — **เมื่อทะลุ** Momentum **ตามมา**</p>  
+    </div>`;  
+  setTimeout(()=>{const o=document.getElementById('ov');o.style.cssText+='opacity:1;animation:fadeUp 0.4s ease forwards;';},300);  
+  showEls(['ov1','ov2','ov3','ov4'],600,250);  
+  showEls(['l1','l2'],1800,220);  
+}},  
+  
+// 10 WHAT IS BUY/SELL STOP  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** Buy Stop **และ** Sell Stop **คืออะไร**</div>  
+    <div class="body">  
+      <p id="l1" class="fu"><span class="acc">Pending Order</span> = **คำสั่งที่รอราคาไปถึงระดับที่กำหนดก่อน**</p>  
+      <p id="l2" class="fu">**ถึงจะทำงาน** — **เราไม่ได้กดเองตอนนั้น**</p>  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l3" class="fu"><span style="color:rgba(0,210,110,0.9);">Buy Stop</span> = **สั่งซื้อเมื่อราคาขึ้นถึงจุดนี้**</p>  
+      <p id="l4" class="fu" style="padding-left:16px;">↑ **วางไว้** "**เหนือ**" **ราคาปัจจุบัน**</p>  
+      <p id="l5" class="fu"><span class="red">Sell Stop</span> = **สั่งขายเมื่อราคาลงถึงจุดนี้**</p>  
+      <p id="l6" class="fu" style="padding-left:16px;">↓ **วางไว้** "**ต่ำกว่า**" **ราคาปัจจุบัน**</p>  
+      <div class="rule" id="r2" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l7" class="fu">**เราวางกับดักรอ** Breakout</p>  
+      <p id="l8" class="fu"><span class="acc">**แล้วให้ตลาดมาชน** Order **ของเรา**</span></p>  
+    </div>`;  
+  showEls(['l1','l2','r1','l3','l4','l5','l6','r2','l7','l8'],300,180);  
+}},  
+  
+// 11 PLACE ORDERS  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **วาง** Pending Order</div>  
+    <div class="order-viz" id="ov" style="opacity:0">  
+      <div class="ov-row" id="b1" style="opacity:0">  
+        <div class="ov-line h"></div>  
+        <span style="font-size:11px;color:rgba(0,210,110,0.9);white-space:nowrap;">PD HIGH &nbsp;↑ Buy Stop</span>  
+      </div>  
+      <div class="ov-row" id="b2" style="opacity:0">  
+        <div class="ov-line h2"></div>  
+        <span style="font-size:11px;color:rgba(0,180,90,0.7);white-space:nowrap;">London HIGH &nbsp;↑ Buy Stop</span>  
+      </div>  
+      <div class="center-price">— **ราคาปัจจุบัน** —</div>  
+      <div class="ov-row" id="s1" style="opacity:0">  
+        <div class="ov-line l2"></div>  
+        <span style="font-size:11px;color:rgba(220,80,80,0.7);white-space:nowrap;">London LOW &nbsp;↓ Sell Stop</span>  
+      </div>  
+      <div class="ov-row" id="s2" style="opacity:0">  
+        <div class="ov-line l"></div>  
+        <span style="font-size:11px;color:var(--red2);white-space:nowrap;">PD LOW &nbsp;↓ Sell Stop</span>  
+      </div>  
+    </div>  
+    <div class="body" style="margin-top:14px;">  
+      <p id="l1" class="fu"><span style="color:rgba(0,210,110,0.9);">Buy Stop × 2</span> — **เหนือ** High **ทั้งสอง**</p>  
+      <p id="l2" class="fu"><span class="red">Sell Stop × 2</span> — **ต่ำกว่า** Low **ทั้งสอง**</p>  
+    </div>`;  
+  setTimeout(()=>{document.getElementById('ov').style.cssText+='opacity:1;animation:fadeUp 0.4s ease forwards;';},300);  
+  showEls(['b1','b2','s1','s2'],600,260);  
+  showEls(['l1','l2'],1800,220);  
+}},  
+  
+// 12 RISK MANAGEMENT  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **การบริหารความเสี่ยง**</div>  
+    <div class="body">  
+      <p id="l1" class="fu" style="font-family:var(--orb);font-size:clamp(16px,2.5vw,26px);color:#fff;">Stop Loss = <span class="red">500 Points</span></p>  
+      <p id="l2" class="fu" style="font-family:var(--orb);font-size:clamp(16px,2.5vw,26px);color:#fff;">Take Profit = <span style="color:rgba(0,210,110,0.9);">1000 Points</span></p>  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;"></div>  
+    </div>  
+    <div id="rv" style="opacity:0;margin:10px 0;">  
+      <div class="risk-row">  
+        <span style="font-size:12px;color:var(--red2);min-width:90px;">Stop Loss</span>  
+        <div class="risk-bar rsl" id="rsl"></div>  
+        <span style="font-size:11px;color:var(--dim);">500 pts</span>  
+      </div>  
+      <div class="risk-row">  
+        <span style="font-size:12px;color:rgba(0,210,110,0.8);min-width:90px;">Take Profit</span>  
+        <div class="risk-bar rtp" id="rtp"></div>  
+        <span style="font-size:11px;color:var(--dim);">1000 pts</span>  
+      </div>  
+    </div>  
+    <div class="body">  
+      <div class="rule" id="r2" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l3" class="fu" style="font-family:var(--orb);font-size:clamp(16px,2.5vw,24px);color:#fff;">Risk : Reward = <span class="red">1 : 2</span></p>  
+      <p id="l4" class="fu"><span class="red">**แพ้**</span> 1 **ครั้ง** — <span style="color:rgba(0,210,110,0.9);">**ชนะ**</span> 1 **ครั้ง** = <span class="acc">**ยังได้กำไร**</span></p>  
+    </div>`;  
+  showEls(['l1','l2','r1'],300,220);  
+  setTimeout(()=>{document.getElementById('rv').style.cssText+='opacity:1;animation:fadeUp 0.4s ease forwards;';},900);  
+  setTimeout(()=>{document.getElementById('rsl').classList.add('go');},1100);  
+  setTimeout(()=>{document.getElementById('rtp').classList.add('go');},1400);  
+  showEls(['r2','l3','l4'],1700,220);  
+}},  
+  
+// 13 GAP  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** Gap **คืออะไร**</div>  
+    <div class="body">  
+      <p id="l1" class="fu"><span class="acc">Gap</span> **คือเมื่อราคาเปิดวันใหม่**</p>  
+      <p id="l2" class="fu">**แล้วทิ้ง**<span class="acc">**ช่องว่างขนาดใหญ่**</span>**จากราคาปิดของวันก่อน**</p>  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;"></div>  
+    </div>  
+    <div id="gv" style="opacity:0;margin:16px 0;display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:0 20px;">  
+      <div style="font-size:11px;color:var(--dim);margin-bottom:4px;">**ปิดวันก่อน**</div>  
+      <div style="height:2px;width:220px;background:rgba(200,100,100,0.4);"></div>  
+      <div class="gap-zone" id="gz" style="width:220px;margin:0;">↕ &nbsp;GAP (**ช่องว่าง**)</div>  
+      <div style="height:2px;width:220px;background:rgba(200,100,100,0.4);margin-top:0;"></div>  
+      <div style="font-size:11px;color:var(--dim);margin-top:4px;">**เปิดวันใหม่** (**สูงกว่าเดิม**)</div>  
+    </div>  
+    <div class="body">  
+      <p id="l3" class="fu">**มักเกิดขึ้นเมื่อ**: **มีข่าวสำคัญนอกเวลาทำการ**</p>  
+      <p id="l4" class="fu">**หรือเหตุการณ์ที่ตลาดไม่ได้คาดไว้**</p>  
+    </div>`;  
+  showEls(['l1','l2','r1'],300,200);  
+  setTimeout(()=>{document.getElementById('gv').style.cssText+='opacity:1;animation:fadeUp 0.4s ease forwards;';},900);  
+  setTimeout(()=>{document.getElementById('gz').classList.add('show');},1300);  
+  showEls(['l3','l4'],1800,200);  
+}},  
+  
+// 14 GAP PROTECTION  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **การป้องกัน** Gap</div>  
+    <div class="body">  
+      <p id="l1" class="fu">**ถ้าราคาเปิด** <span class="acc">**สูงกว่า** Previous Day High</span>:</p>  
+      <p id="l2" class="fu" style="padding-left:16px;">→ <span id="cx1" style="color:var(--red2);font-family:var(--orb);">[**ยกเลิก**]</span> Buy Stop **ทั้งหมดวันนั้น**</p>  
+      <p id="l3" class="fu" style="padding-left:16px;">→ **เทรดได้เฉพาะฝั่ง** <span class="acc">Sell **เท่านั้น**</span></p>  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l4" class="fu">**ถ้าราคาเปิด** <span class="acc">**ต่ำกว่า** Previous Day Low</span>:</p>  
+      <p id="l5" class="fu" style="padding-left:16px;">→ <span id="cx2" style="color:var(--red2);font-family:var(--orb);">[**ยกเลิก**]</span> Sell Stop **ทั้งหมดวันนั้น**</p>  
+      <p id="l6" class="fu" style="padding-left:16px;">→ **เทรดได้เฉพาะฝั่ง** <span class="acc">Buy **เท่านั้น**</span></p>  
+      <div class="rule" id="r2" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l7" class="fu"><span class="red">**ราคาที่** Gap **แล้วย้อนกลับทันที** **มีความเสี่ยงสูงมาก**</span></p>  
+    </div>`;  
+  showEls(['l1','l2','l3','r1','l4','l5','l6','r2','l7'],300,180);  
+  setTimeout(()=>{  
+    ['cx1','cx2'].forEach(id=>{  
+      const el=document.getElementById(id);  
+      if(el)el.style.animation='blinkS 0.7s ease-in-out 5';  
+    });  
+  },1200);  
+}},  
+  
+// 15 END OF DAY  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **พอตลาดปิดปุ๊บ**</div>  
+    <table class="ttable" id="tt" style="opacity:0">  
+      <tr><td>UTC</td><td style="font-size:clamp(18px,3vw,30px);">20:45</td></tr>  
+      <tr><td>**ไทย**</td><td style="font-size:clamp(18px,3vw,30px);">03:45 (**เช้าวันถัดไป**)</td></tr>  
+    </table>  
+    <div class="body">  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l1" class="fu">1. **ปิด** <span class="acc">Position</span> **ที่ยังค้างอยู่ทั้งหมด**</p>  
+      <p id="l2" class="fu">2. **ยกเลิก** <span class="acc">Pending Order</span> **ที่ยังไม่ถูก** Trigger</p>  
+      <div class="rule" id="r2" style="opacity:0;transition:opacity 0.4s;"></div>  
+      <p id="l3" class="fu">**วันใหม่เริ่มต้น** → **กราฟ** Reset</p>  
+      <p id="l4" class="fu">**มาร์คเส้นใหม่** → **ตั้ง** Order **ใหม่**</p>  
+      <p id="l5" class="fu" style="font-family:var(--orb);color:#fff;letter-spacing:2px;"><span class="acc">**ทำซ้ำทุกวัน**</span></p>  
+    </div>`;  
+  setTimeout(()=>{document.getElementById('tt').style.cssText+='opacity:1;animation:fadeUp 0.4s ease forwards;';},300);  
+  showEls(['r1','l1','l2','r2','l3','l4','l5'],700,190);  
+}},  
+  
+// 16 MANUAL SUMMARY  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **สรุปขั้นตอน** — Manual</div>  
+    <ul class="step-list" id="sl">  
+      <li><span class="step-num">01</span><span>**เปิดกราฟ** <span class="acc">Daily (D1)</span> **บน** TradingView</span></li>  
+      <li><span class="step-num">02</span><span>**มาร์ค** <span class="acc">Previous Day High/Low</span><br><span style="font-size:11px;color:var(--dim);">UTC: 00:00→20:45 &nbsp;|&nbsp; **ไทย**: 07:00→03:45</span></span></li>  
+      <li><span class="step-num">03</span><span>**ใช้** <span class="acc">Session Indicator</span> **หาโซน** London<br><span style="font-size:11px;color:var(--dim);">UTC: 08:00 / **ไทย**: 15:00</span></span></li>  
+      <li><span class="step-num">04</span><span>**มาร์ค** <span class="acc">London High/Low</span><br><span style="font-size:11px;color:var(--dim);">UTC: 08:00→20:45 &nbsp;|&nbsp; **ไทย**: 15:00→03:45</span></span></li>  
+      <li><span class="step-num">05</span><span>**วาง** <span style="color:rgba(0,210,110,0.9);">Buy Stop</span> **เหนือ** High **ทั้งสอง**</span></li>  
+      <li><span class="step-num">06</span><span>**วาง** <span class="red">Sell Stop</span> **ต่ำกว่า** Low **ทั้งสอง**</span></li>  
+      <li><span class="step-num">07</span><span><span class="red">SL = 500 pts</span> &nbsp;|&nbsp; <span style="color:rgba(0,210,110,0.9);">TP = 1000 pts</span> &nbsp;|&nbsp; R:R = 1:2</span></li>  
+      <li><span class="step-num">08</span><span>**ตรวจสอบ** <span class="acc">Gap</span> **ก่อนเทรดทุกวัน**</span></li>  
+      <li><span class="step-num">09</span><span>**ปิดทุกอย่าง** <span class="acc">20:45 UTC / 03:45 **ไทย**</span></span></li>  
+    </ul>`;  
+  document.querySelectorAll('#sl li').forEach((li,i)=>setTimeout(()=>li.classList.add('show'),400+i*200));  
+}},  
+  
+// 17 WHY EA  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **ทำไมต้องใช้** EA</div>  
+    <div class="body">  
+      <p id="l1" class="fu">**ระบบนี้มีกฎชัดเจนทุกข้อ** **ไม่มีการตีความ**</p>  
+      <p id="l2" class="fu">**แต่การทำ** Manual **ทุกวันมีความเสี่ยง**:</p>  
+    </div>  
+    <ul class="check-list" id="bad" style="margin:10px 0;">  
+      <li class="bad"><span class="chk">✗</span><span>**ลืมลากเส้นตรง**</span></li>  
+      <li class="bad"><span class="chk">✗</span><span>**ตั้ง** Order **ผิดระดับ**</span></li>  
+      <li class="bad"><span class="chk">✗</span><span>**หลับพลาดสัญญาณ** 03:45 **ไทย**</span></li>  
+      <li class="bad"><span class="chk">✗</span><span>**อารมณ์เข้ามาแทรกแซง**</span></li>  
+      <li class="bad"><span class="chk">✗</span><span>**คำนวณ** SL/TP **ผิดพลาด**</span></li>  
+    </ul>`;  
+  showEls(['l1','l2'],300,200);  
+  document.querySelectorAll('#bad li').forEach((li,i)=>setTimeout(()=>li.classList.add('show'),800+i*160));  
+}},  
+  
+// 18 EA ADVANTAGES  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div class="lbl">**◈** **ข้อดีของการใช้** EA</div>  
+    <ul class="check-list" id="good">  
+      <li class="good"><span class="chk">✓</span><span>**มาร์คเส้นตรงอัตโนมัติทุกวัน**</span></li>  
+      <li class="good"><span class="chk">✓</span><span>**วาง** Order **ถูกต้องทุกครั้ง**</span></li>  
+      <li class="good"><span class="chk">✓</span><span>**ไม่เคยพลาด** London</span></li>  
+      <li class="good"><span class="chk">✓</span><span>**ตรวจสอบ** Gap **โดยอัตโนมัติ**</span></li>  
+      <li class="good"><span class="chk">✓</span><span>**ปิดทุกอย่างตรง** 20:45 UTC **ทุกคืน**</span></li>  
+      <li class="good"><span class="chk">✓</span><span>**ทำงานตลอด** 24 **ชั่วโมง**</span></li>  
+    </ul>  
+    <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;margin-top:14px;"></div>  
+    <p id="l1" class="fu" style="text-align:center;font-family:var(--orb);font-size:clamp(14px,2vw,20px);color:#fff;margin-top:12px;">**คุณแค่ตรวจสอบผล**</p>  
+    <p id="l2" class="fu" style="text-align:center;font-family:var(--orb);font-size:clamp(14px,2vw,20px);color:var(--red2);">**ระบบทำงานแทนคุณ**</p>`;  
+  document.querySelectorAll('#good li').forEach((li,i)=>setTimeout(()=>li.classList.add('show'),300+i*180));  
+  showEls(['r1','l1','l2'],1600,200);  
+}},  
+  
+// 19 FINAL  
+{render(){  
+  document.getElementById('si').innerHTML=`  
+    <div style="text-align:center;max-width:580px;margin:0 auto;">  
+      <p class="final-line" id="f1">**ระบบนี้ใช้** Liquidity</p>  
+      <p class="final-line" id="f2">**ที่สะสมอยู่ที่จุดต่ำสูงพวกนี้ของแต่ละวัน**</p>  
+      <div class="rule" id="r1" style="opacity:0;transition:opacity 0.4s;max-width:280px;margin:18px auto;"></div>  
+      <p class="final-line" id="f3">**เมื่อเข้าใจหลักการแล้ว**</p>  
+      <p class="final-line" id="f4">**ระบบจะทำงานแทนคุณได้อย่างสมบูรณ์**</p>  
+      <div class="rule" id="r2" style="opacity:0;transition:opacity 0.4s;max-width:280px;margin:18px auto;"></div>  
+      <p class="final-line" id="f5" style="font-family:var(--orb);font-size:clamp(14px,2vw,20px);letter-spacing:4px;color:var(--red);">**สิ้นสุดรายงาน**</p>  
+      <div id="fc" style="margin-top:14px;font-size:26px;color:var(--red);opacity:0;">**█**</div>  
+    </div>`;  
+  ['f1','f2','r1','f3','f4','r2','f5'].forEach((id,i)=>{  
+    setTimeout(()=>{  
+      const el=document.getElementById(id);  
+      if(el){el.classList.add('show');}  
+    },600+i*500);  
+  });  
+  setTimeout(()=>{  
+    const fc=document.getElementById('fc');  
+    if(fc){fc.style.cssText+='opacity:1;animation:blink 0.7s step-end infinite;';}  
+  },5000);  
+}},  
+  
+];  
+  
+// **──** ENGINE **──────────────────────────────────────────────────────────────────**  
+let cur=0,busy=false;  
+const TOTAL=SLIDES.length;  
+  
+function updateCounter(){  
+  document.getElementById('sc').textContent=`SLIDE ${String(cur+1).padStart(2,'0')} / ${String(TOTAL).padStart(2,'0')}`;  
+  const bb=document.getElementById('back-btn');  
+  if(cur===0)bb.classList.add('hidden');  
+  else bb.classList.remove('hidden');  
+}  
+  
+function renderSlide(idx){  
+  const si=document.getElementById('si');  
+  si.style.opacity='0';  
+  si.style.transform='translateY(10px)';  
+  si.style.transition='none';  
+  setTimeout(()=>{  
+    si.innerHTML='';  
+    SLIDES[idx].render();  
+    si.style.transition='opacity 0.35s ease, transform 0.35s ease';  
+    si.style.opacity='1';  
+    si.style.transform='translateY(0)';  
+  },160);  
+  updateCounter();  
+}  
+  
+function goForward(){  
+  if(busy)return;  
+  if(cur>=TOTAL-1)return;  
+  flash();busy=true;  
+  cur++;renderSlide(cur);  
+  setTimeout(()=>busy=false,500);  
+}  
+  
+function goBack(e){  
+  e.stopPropagation();  
+  if(busy)return;  
+  if(cur<=0)return;  
+  flash();busy=true;  
+  cur--;renderSlide(cur);  
+  setTimeout(()=>busy=false,500);  
+}  
+window.goBack=goBack;  
+  
+document.addEventListener('keydown',e=>{  
+  if(e.code==='Space'){e.preventDefault();goForward();}  
+  if(e.code==='ArrowLeft'||e.code==='Backspace'){e.preventDefault();  
+    const ev={stopPropagation:()=>{}};goBack(ev);}  
+  if(e.code==='Escape'){flash();busy=false;cur=0;renderSlide(0);}  
+});  
+  
+renderSlide(0);  
+</script>  
+</body>  
+</html>  
